@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星火时钟</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="watch">
+      <canvas id="scene" aria-label="互动星空篝火时钟"></canvas>
+      <section class="hud" aria-label="当前时间">
+        <div class="signal">Campfire clock</div>
+        <time id="clock" class="clock">00:00:00</time>
+        <div id="date" class="date">正在校准星图</div>
+      </section>
+      <button id="focusButton" class="focus-button" type="button" aria-label="回到篝火视角">
+        <span aria-hidden="true">⌖</span>
+      </button>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,145 @@
+:root {
+  --ember: #ff8b35;
+  --coal: #07090f;
+  --void: #02030a;
+  --ash: #c7c2ae;
+  --teal: #76e5d2;
+  --moss: #7d9364;
+  --ink: #f7f0d4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--void);
+  color: var(--ink);
+  font-family:
+    ui-monospace, "SFMono-Regular", "Cascadia Mono", "Liberation Mono", Menlo,
+    monospace;
+}
+
+body {
+  touch-action: none;
+}
+
+.watch {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 520px;
+  background:
+    radial-gradient(circle at 50% 58%, rgba(255, 139, 53, 0.18), transparent 28%),
+    radial-gradient(circle at 72% 18%, rgba(118, 229, 210, 0.12), transparent 24%),
+    #02030a;
+}
+
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hud {
+  position: absolute;
+  left: clamp(18px, 4vw, 56px);
+  bottom: clamp(20px, 5vh, 58px);
+  max-width: min(460px, calc(100vw - 92px));
+  pointer-events: none;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.75);
+}
+
+.signal {
+  width: fit-content;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 139, 53, 0.58);
+  color: var(--teal);
+  font-family: "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.clock {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 9.5rem;
+  line-height: 0.86;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.date {
+  margin-top: 14px;
+  color: rgba(247, 240, 212, 0.78);
+  font-size: 0.96rem;
+  letter-spacing: 0;
+}
+
+.focus-button {
+  position: absolute;
+  right: clamp(16px, 3vw, 36px);
+  bottom: clamp(16px, 3vw, 36px);
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(247, 240, 212, 0.28);
+  border-radius: 50%;
+  background: rgba(5, 7, 16, 0.5);
+  color: var(--ink);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.34);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease,
+    background 180ms ease;
+  backdrop-filter: blur(14px);
+}
+
+.focus-button:hover,
+.focus-button:focus-visible {
+  border-color: rgba(255, 139, 53, 0.84);
+  background: rgba(255, 139, 53, 0.14);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.focus-button span {
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+@media (max-width: 700px) {
+  .watch {
+    min-height: 480px;
+  }
+
+  .hud {
+    bottom: 24px;
+  }
+
+  .clock {
+    font-size: 4.5rem;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1040px) {
+  .clock {
+    font-size: 7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-button {
+    transition: none;
+  }
+}
