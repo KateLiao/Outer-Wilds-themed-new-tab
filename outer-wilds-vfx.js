@@ -46,10 +46,16 @@ export class OuterWildsInspiredStarfield {
       positions[i * 3 + 2] = direction.z * distance;
 
       const brightChance = Math.random();
-      sizes[i] = brightChance > 0.994 ? 3.5 + Math.random() * 1.15 : 0.82 + Math.pow(Math.random(), 2.35) * 2.35;
-      brightness[i] = brightChance > 0.994 ? 0.66 + Math.random() * 0.24 : 0.14 + Math.pow(Math.random(), 1.55) * 0.48;
+      const giantChance = Math.random();
+      const baseSize = brightChance > 0.994
+        ? 3.5 + Math.random() * 1.15
+        : 0.82 + Math.pow(Math.random(), 2.35) * 2.35;
+      sizes[i] = giantChance > 0.991 ? baseSize * 5 : baseSize;
+      brightness[i] = brightChance > 0.994
+        ? 0.66 + Math.random() * 0.24
+        : 0.14 + Math.pow(Math.random(), 1.55) * 0.48;
       temperature[i] = Math.random();
-      twinkleSpeed[i] = 0.18 + Math.random() * 0.62;
+      twinkleSpeed[i] = 0.045 + Math.random() * 0.2;
       phase[i] = Math.random() * Math.PI * 2;
     }
 

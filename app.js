@@ -49,7 +49,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.32;
+renderer.toneMappingExposure = 1.44;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const bloomPixelRatio = Math.min(window.devicePixelRatio, window.innerWidth < 720 ? 1.35 : 1.75);
 const composer = new EffectComposer(renderer);
@@ -98,20 +100,53 @@ let lastPointerDownAt = 0;
 const root = new THREE.Group();
 scene.add(root);
 
-const ambient = new THREE.HemisphereLight(0x20334f, 0x171009, 1.25);
+const ambient = new THREE.HemisphereLight(0x2b4166, 0x211309, 0.84);
 scene.add(ambient);
 
-const moon = new THREE.DirectionalLight(0x9fc8ff, 1.7);
+const moon = new THREE.DirectionalLight(0x94c3ff, 0.82);
 moon.position.set(-8, 11, -8);
+moon.castShadow = true;
+moon.shadow.mapSize.set(1024, 1024);
+moon.shadow.camera.near = 1;
+moon.shadow.camera.far = 44;
+moon.shadow.camera.left = -18;
+moon.shadow.camera.right = 18;
+moon.shadow.camera.top = 18;
+moon.shadow.camera.bottom = -18;
 scene.add(moon);
 
-const fireLight = new THREE.PointLight(0xff8b35, 18, 42, 1.7);
-fireLight.position.set(0, 1.4, 0);
+const fireLight = new THREE.PointLight(0xff8a32, 30, 38, 2.05);
+fireLight.position.set(0, 1.15, 0);
+fireLight.castShadow = true;
+fireLight.shadow.mapSize.set(768, 768);
+fireLight.shadow.camera.near = 0.45;
+fireLight.shadow.camera.far = 30;
+fireLight.shadow.bias = -0.002;
 scene.add(fireLight);
 
-const tealLight = new THREE.PointLight(0x76e5d2, 4.5, 35, 1.9);
-tealLight.position.set(6, 4, -7);
-scene.add(tealLight);
+const emberFillLight = new THREE.PointLight(0xffb36a, 9.6, 24, 2.35);
+emberFillLight.position.set(0, 0.42, 0);
+scene.add(emberFillLight);
+
+const forestBounceLights = [
+  [0, 0.82, -4.2],
+  [4.1, 0.75, -0.6],
+  [-4.1, 0.75, 0.7],
+].map(([x, y, z]) => {
+  const light = new THREE.PointLight(0xff9a48, 3.8, 24, 2.15);
+  light.position.set(x, y, z);
+  scene.add(light);
+  return light;
+});
+
+const canopyWashLight = new THREE.SpotLight(0xff9f4f, 13, 18, Math.PI * 0.34, 0.88, 1.75);
+canopyWashLight.position.set(0, 1.75, 0);
+canopyWashLight.target.position.set(0, 3.5, -5.8);
+scene.add(canopyWashLight, canopyWashLight.target);
+
+const violetLight = new THREE.PointLight(0x8276ff, 2.1, 38, 2.05);
+violetLight.position.set(6, 4, -7);
+scene.add(violetLight);
 
 const rimLight = new THREE.PointLight(0x6a85ff, 3.2, 46, 2.1);
 rimLight.position.set(-7, 3.6, 6);
@@ -127,7 +162,23 @@ const ground = new THREE.Mesh(
 );
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.04;
+ground.receiveShadow = true;
 root.add(ground);
+
+const fireGlow = new THREE.Mesh(
+  new THREE.CircleGeometry(11.2, 128),
+  new THREE.MeshBasicMaterial({
+    map: makeRadialGlowTexture("rgba(255, 149, 53, 0.9)", "rgba(255, 94, 22, 0)"),
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.72,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  }),
+);
+fireGlow.rotation.x = -Math.PI / 2;
+fireGlow.position.y = 0.006;
+root.add(fireGlow);
 
 const groundRing = new THREE.Mesh(
   new THREE.RingGeometry(2.7, 2.82, 96),
@@ -145,9 +196,9 @@ root.add(groundRing);
 const horizonGlow = new THREE.Mesh(
   new THREE.RingGeometry(11.4, 14.2, 128),
   new THREE.MeshBasicMaterial({
-    color: 0x5fbfd2,
+    color: 0x5860bc,
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.075,
     side: THREE.DoubleSide,
     depthWrite: false,
   }),
@@ -173,12 +224,18 @@ for (let i = 0; i < 22; i += 1) {
 root.add(stones);
 
 const forest = new THREE.Group();
-const treeMat = new THREE.MeshBasicMaterial({ color: 0x061018 });
+const treeMat = new THREE.MeshStandardMaterial({
+  color: 0x223219,
+  roughness: 0.98,
+  metalness: 0,
+  emissive: 0x120905,
+  emissiveIntensity: 0.38,
+});
 const barkMat = new THREE.MeshStandardMaterial({
-  color: 0x221409,
+  color: 0x3b2110,
   roughness: 0.96,
-  emissive: 0x0d0502,
-  emissiveIntensity: 0.2,
+  emissive: 0x1a0904,
+  emissiveIntensity: 0.3,
 });
 
 [
@@ -307,9 +364,9 @@ const cosmicVFX = new OuterWildsCosmicVFX({
 scene.add(cosmicVFX.group);
 
 const orbitLineMat = new THREE.LineBasicMaterial({
-  color: 0x76e5d2,
+  color: 0x8f86ff,
   transparent: true,
-  opacity: cosmicVFX.orbitLineOpacity * 0.72,
+  opacity: cosmicVFX.orbitLineOpacity * 0.82,
 });
 const orbitLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeCirclePoints(23.5, 192)), orbitLineMat);
 orbitLine.rotation.x = Math.PI * 0.54;
@@ -332,23 +389,23 @@ coordinateGlyphs.renderOrder = 10;
 eyeSky.add(coordinateGlyphs);
 
 replaceWithReferenceLineArt(eyeSymbol, "./assets/eye-symbol-reference.png", {
-  color: [247, 240, 212],
-  glowColor: [118, 229, 210],
+  color: [226, 230, 255],
+  glowColor: [130, 118, 255],
   threshold: 228,
   softness: 64,
   alphaPower: 0.82,
-  glow: 0.34,
+  glow: 0.46,
   edgeClear: 18,
   pad: 8,
 });
 
 replaceWithReferenceLineArt(coordinateGlyphs, "./assets/eye-coordinates-reference.png", {
-  color: [247, 240, 212],
-  glowColor: [118, 229, 210],
+  color: [226, 230, 255],
+  glowColor: [130, 118, 255],
   threshold: 226,
   softness: 58,
   alphaPower: 0.74,
-  glow: 0.28,
+  glow: 0.42,
   edgeClear: 18,
   pad: 6,
 });
@@ -418,6 +475,27 @@ function makeCirclePoints(radius, segments) {
   return points;
 }
 
+function makeRadialGlowTexture(innerColor, outerColor) {
+  const size = 256;
+  const canvas2d = document.createElement("canvas");
+  canvas2d.width = size;
+  canvas2d.height = size;
+  const ctx = canvas2d.getContext("2d");
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 4, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, innerColor);
+  gradient.addColorStop(0.16, "rgba(255, 179, 92, 0.42)");
+  gradient.addColorStop(0.46, "rgba(255, 128, 42, 0.18)");
+  gradient.addColorStop(0.78, "rgba(255, 94, 22, 0.055)");
+  gradient.addColorStop(1, outerColor);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas2d);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
 function makePineTree(height, material) {
   const tree = new THREE.Group();
   const trunk = new THREE.Mesh(
@@ -425,6 +503,8 @@ function makePineTree(height, material) {
     material === treeMat ? barkMat : material,
   );
   trunk.position.y = height * 0.44;
+  trunk.castShadow = true;
+  trunk.receiveShadow = true;
   tree.add(trunk);
 
   const branchCount = Math.floor(6 + height * 1.4);
@@ -439,6 +519,8 @@ function makePineTree(height, material) {
     branch.scale.z = 0.25;
     branch.rotation.y = i * 1.82;
     branch.rotation.x = Math.PI * 0.54;
+    branch.castShadow = true;
+    branch.receiveShadow = true;
     tree.add(branch);
   }
 
@@ -447,6 +529,8 @@ function makePineTree(height, material) {
     branchMat,
   );
   needles.position.y = height * 0.96;
+  needles.castShadow = true;
+  needles.receiveShadow = true;
   tree.add(needles);
   return tree;
 }
@@ -717,15 +801,15 @@ function makeEyeSymbol() {
   return makeCanvasSprite(640, 640, (ctx, w, h) => {
     const cx = w / 2;
     const cy = h / 2;
-    const cream = "#f7f0d4";
-    const teal = "#76e5d2";
+    const starlight = "#e2e6ff";
+    const violet = "#8276ff";
 
     ctx.lineCap = "butt";
     ctx.lineJoin = "miter";
-    ctx.shadowColor = "rgba(118, 229, 210, 0.55)";
-    ctx.shadowBlur = 18;
+    ctx.shadowColor = "rgba(130, 118, 255, 0.66)";
+    ctx.shadowBlur = 22;
 
-    function strokePath(points, color = cream, width = 8) {
+    function strokePath(points, color = starlight, width = 8) {
       ctx.beginPath();
       points.forEach(([x, y], index) => {
         if (index === 0) ctx.moveTo(cx + x, cy + y);
@@ -751,7 +835,7 @@ function makeEyeSymbol() {
       [-232, 70, -82, 28, 4],
     ];
     rays.forEach(([x1, y1, x2, y2, width], index) => {
-      strokePath([[x1, y1], [x2, y2]], index % 3 === 0 ? teal : cream, width);
+      strokePath([[x1, y1], [x2, y2]], index % 3 === 0 ? violet : starlight, width);
     });
 
     const mazePaths = [
@@ -769,7 +853,7 @@ function makeEyeSymbol() {
       [[-18, 154], [18, 154], [18, 104], [-18, 104], [-18, 72]],
     ];
     mazePaths.forEach((path, index) => {
-      strokePath(path, index % 4 === 0 ? teal : cream, index % 5 === 0 ? 9 : 7);
+      strokePath(path, index % 4 === 0 ? violet : starlight, index % 5 === 0 ? 9 : 7);
     });
 
     ctx.shadowBlur = 0;
@@ -789,9 +873,9 @@ function makeCoordinateGlyphs() {
     ctx.translate(28, 16);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.shadowColor = "rgba(247, 240, 212, 0.32)";
-    ctx.shadowBlur = 16;
-    ctx.strokeStyle = "#f7f0d4";
+    ctx.shadowColor = "rgba(130, 118, 255, 0.54)";
+    ctx.shadowBlur = 22;
+    ctx.strokeStyle = "#e2e6ff";
     ctx.lineWidth = 16;
 
     function draw(points, offsetX) {
@@ -950,10 +1034,34 @@ function animate(time = 0) {
   const clock = updateClock(now);
   const motion = (reducedMotion ? 0.18 : 1) * motionScale;
   const beat = 0.82 + Math.sin(clock.secondAngle * 6 + t * 4) * 0.06;
+  const emberPulse = 0.86
+    + Math.sin(t * 7.4) * 0.07
+    + Math.sin(t * 13.7 + 1.8) * 0.045
+    + clickBurst * 0.18;
   const focusBoost = focusIntensityActive ? 1.1 : 1;
 
-  fireLight.intensity = (15 + Math.sin(t * 7) * 2.4 + clickBurst * 8) * focusBoost;
-  fireLight.color.setHSL(0.07 + Math.sin(t * 2) * 0.014, 1, 0.58);
+  fireLight.intensity = (26 + emberPulse * 8 + clickBurst * 8) * focusBoost;
+  fireLight.position.set(
+    Math.sin(t * 5.8) * 0.16,
+    1.04 + Math.sin(t * 8.7 + 0.6) * 0.12,
+    Math.cos(t * 4.9) * 0.14,
+  );
+  fireLight.color.setHSL(0.065 + Math.sin(t * 2.2) * 0.014, 1, 0.57);
+  emberFillLight.intensity = (7.4 + emberPulse * 3.4 + clickBurst * 3.5) * focusBoost;
+  forestBounceLights.forEach((light, index) => {
+    light.intensity = (4.5 + emberPulse * 2.1 + Math.sin(t * (1.4 + index * 0.23)) * 0.42) * focusBoost;
+  });
+  canopyWashLight.intensity = (9.2 + emberPulse * 4.8 + clickBurst * 2.6) * focusBoost;
+  canopyWashLight.target.position.set(
+    Math.sin(t * 0.64) * 1.1,
+    3.2 + Math.sin(t * 1.2) * 0.34,
+    -5.4 + Math.cos(t * 0.5) * 0.9,
+  );
+  fireGlow.material.opacity = 0.46 + emberPulse * 0.1 + clickBurst * 0.07;
+  fireGlow.scale.setScalar(0.98 + emberPulse * 0.055 + clickBurst * 0.035);
+  groundRing.material.opacity = 0.2 + emberPulse * 0.08;
+  treeMat.emissiveIntensity = 0.36 + emberPulse * 0.18;
+  barkMat.emissiveIntensity = 0.28 + emberPulse * 0.12;
 
   flames.forEach((flame, index) => {
     const wobble = Math.sin(t * (2.6 + flame.userData.layer) + flame.userData.seed);
@@ -983,6 +1091,7 @@ function animate(time = 0) {
 
   cosmicVFX.update(t, camera);
   horizonGlow.material.opacity = 0.1 + Math.sin(t * 0.7) * 0.025;
+  violetLight.intensity = 1.85 + Math.sin(t * 0.75) * 0.32;
   stones.rotation.y = Math.sin(t * 0.17) * 0.015;
   forest.children.forEach((tree) => {
     tree.rotation.z = tree.userData.lean * 0.18 + Math.sin(t * 0.9 + tree.userData.seed) * 0.012 * motion;

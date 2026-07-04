@@ -6,6 +6,33 @@
 const ALARM_NAME = "pomodoro-phase-end";
 
 /**
+ * 将轮次限制在合法范围内。
+ * @param {number} round 原始轮次
+ * @param {number} cyclesBeforeLong 每周期专注轮数
+ * @returns {number}
+ */
+function normalizeRound(round, cyclesBeforeLong) {
+  const cycles = Math.max(2, Number(cyclesBeforeLong) || 4);
+  const value = Number(round) || 1;
+  return Math.min(cycles, Math.max(1, value));
+}
+
+/**
+ * 短休息结束后下一轮专注的轮次。
+ * @param {number} round 当前轮次
+ * @param {number} cyclesBeforeLong 每周期专注轮数
+ * @returns {number}
+ */
+function getNextRoundAfterShortBreak(round, cyclesBeforeLong) {
+  const normalized = normalizeRound(round, cyclesBeforeLong);
+  const cycles = Math.max(2, Number(cyclesBeforeLong) || 4);
+  if (normalized >= cycles) {
+    return 1;
+  }
+  return normalized + 1;
+}
+
+/**
  * 从 storage.local 读取当前番茄钟会话。
  * @returns {Promise<object|null>}
  */
@@ -60,11 +87,13 @@ async function handleAlarm() {
 
   const round = session.round ?? 1;
   const cycles = settings.cyclesBeforeLong ?? 4;
+  const displayRound = normalizeRound(round, cycles);
 
   if (session.phase === "focus") {
-    showNotification("专注完成", `第 ${round} 轮结束，开始烤棉花糖吧`);
+    showNotification("专注完成", `第 ${displayRound} 轮结束，开始烤棉花糖吧`);
   } else if (session.phase === "short_break") {
-    showNotification("休息结束", `准备开始第 ${round + 1} 轮专注`);
+    const nextRound = getNextRoundAfterShortBreak(round, cycles);
+    showNotification("休息结束", `准备开始第 ${nextRound} 轮专注`);
   } else if (session.phase === "long_break") {
     showNotification("长休息结束", `${cycles} 轮已完成，随时可以重新开始`);
   }

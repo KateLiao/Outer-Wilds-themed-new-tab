@@ -8,7 +8,7 @@
  */
 import { PomodoroController, PHASE } from "./pomodoro.js";
 import { initPomodoroUI } from "./pomodoro-ui.js";
-import { playSound, warmupAudio } from "./audio.js";
+import { playSound, warmupAudio, syncRestMusicForPhase } from "./audio.js";
 
 /**
  * 判断页面是否处于后台或失去焦点。
@@ -37,6 +37,48 @@ async function bootstrap() {
   // 触发 Temporal Dead Zone ReferenceError
   let ui = null;
   let pendingRoastView = false;
+  let audioReady = false;
+
+  /**
+   * 根据阶段变更事件播放对应开始提示音（跳过 init 后的首次同步）。
+   * @param {object} payload onChange 载荷
+   * @returns {void}
+   */
+  function maybePlayPhaseSound(payload) {
+    if (!audioReady) {
+      return;
+    }
+    const { settings, session, eventType } = payload;
+    if (!settings.soundEnabled || isPageHidden()) {
+      return;
+    }
+
+    const { phase } = session;
+    const focusStartEvents = new Set([
+      "focus-start",
+      "short-break-end",
+      "long-break-end",
+      "skip-short-break",
+      "skip-long-break",
+      "debug-focus",
+    ]);
+    const breakStartEvents = new Set([
+      "focus-complete",
+      "break-start",
+      "debug-short-break",
+      "debug-long-break",
+    ]);
+
+    if (focusStartEvents.has(eventType) && phase === PHASE.FOCUS) {
+      playSound("focus-start", true);
+    }
+    if (
+      breakStartEvents.has(eventType) &&
+      (phase === PHASE.SHORT_BREAK || phase === PHASE.LONG_BREAK)
+    ) {
+      playSound("break-start", true);
+    }
+  }
 
   /**
    * 进入烤棉花糖近景；场景未就绪时排队，加载完成后补触发。
@@ -54,6 +96,8 @@ async function bootstrap() {
     onChange: (payload) => {
       // 使用可选链，init() 结束前 onChange 可能被调用而 ui 尚未赋值
       ui?.render(payload);
+      maybePlayPhaseSound(payload);
+      syncRestMusicForPhase(payload.session.phase, payload.settings.soundEnabled);
       if (payload.session.phase === PHASE.PAUSED) {
         sceneBridge.setMotionScale?.(0.3);
       } else if (payload.session.phase === PHASE.FOCUS) {
@@ -68,15 +112,6 @@ async function bootstrap() {
       }
     },
     onComplete: (event) => {
-      const settings = pomodoro.getSettings();
-      if (settings.soundEnabled && !isPageHidden() && !event.debug) {
-        if (event.type === "focus-complete") {
-          playSound("focus-complete", true);
-        } else {
-          playSound("break-complete", true);
-        }
-      }
-
       if (event.type === "focus-complete") {
         // 与手动双击篝火相同：直接进入烤棉花糖近景
         triggerRoastView();
@@ -85,6 +120,7 @@ async function bootstrap() {
   });
 
   await pomodoro.init();
+  audioReady = true;
 
   // init() 结束后再赋值，此后 onChange 调用 ui?.render() 才能正常渲染
   ui = initPomodoroUI(pomodoro, {

@@ -53,6 +53,85 @@ export function formatCountdown(ms) {
 }
 
 /**
+ * 将轮次限制在 [1, cyclesBeforeLong] 内，避免显示「第 5/4 轮」等非法状态。
+ * @param {number} round 原始轮次
+ * @param {number} cyclesBeforeLong 每周期专注轮数
+ * @returns {number}
+ */
+export function normalizeRound(round, cyclesBeforeLong) {
+  const cycles = Math.max(2, Number(cyclesBeforeLong) || DEFAULT_SETTINGS.cyclesBeforeLong);
+  const value = Number(round) || 1;
+  return Math.min(cycles, Math.max(1, value));
+}
+
+/**
+ * 判断当前轮次完成后是否应进入长休息。
+ * @param {number} round 当前轮次
+ * @param {number} cyclesBeforeLong 每周期专注轮数
+ * @returns {boolean}
+ */
+export function isLongBreakRound(round, cyclesBeforeLong) {
+  return normalizeRound(round, cyclesBeforeLong) >= Math.max(2, Number(cyclesBeforeLong) || DEFAULT_SETTINGS.cyclesBeforeLong);
+}
+
+/**
+ * 短休息结束后下一轮的轮次（不超过 cyclesBeforeLong；异常数据时回到 1）。
+ * @param {number} round 刚结束短休息时对应的专注轮次
+ * @param {number} cyclesBeforeLong 每周期专注轮数
+ * @returns {number}
+ */
+export function getNextRoundAfterShortBreak(round, cyclesBeforeLong) {
+  const normalized = normalizeRound(round, cyclesBeforeLong);
+  const cycles = Math.max(2, Number(cyclesBeforeLong) || DEFAULT_SETTINGS.cyclesBeforeLong);
+  if (normalized >= cycles) {
+    return 1;
+  }
+  return normalized + 1;
+}
+
+/**
+ * 生成 HUD 阶段状态文案（统一轮次展示规则）。
+ * @param {string} phase 当前阶段
+ * @param {number} round 当前轮次
+ * @param {number} cyclesBeforeLong 每周期专注轮数
+ * @returns {string}
+ */
+export function formatRoundStatus(phase, round, cyclesBeforeLong) {
+  const cycles = Math.max(2, Number(cyclesBeforeLong) || DEFAULT_SETTINGS.cyclesBeforeLong);
+  const currentRound = normalizeRound(round, cycles);
+
+  if (phase === PHASE.LONG_BREAK) {
+    return `长休息 · 已完成 ${cycles} 轮专注`;
+  }
+
+  const phaseLabel = {
+    [PHASE.FOCUS]: "专注中",
+    [PHASE.PAUSED]: "已暂停",
+    [PHASE.SHORT_BREAK]: "短休息",
+    [PHASE.ROAST_CEREMONY]: "短休息",
+  }[phase];
+
+  if (!phaseLabel) {
+    return "";
+  }
+
+  return `${phaseLabel} · 第 ${currentRound}/${cycles} 轮`;
+}
+
+/**
+ * 校正会话中的轮次字段，修复历史脏数据。
+ * @param {object} session 会话对象
+ * @param {number} cyclesBeforeLong 每周期专注轮数
+ * @returns {object}
+ */
+export function sanitizeSessionRound(session, cyclesBeforeLong) {
+  return {
+    ...session,
+    round: normalizeRound(session.round, cyclesBeforeLong),
+  };
+}
+
+/**
  * 番茄钟控制器：经典四阶段状态机，支持持久化与跨标签同步。
  */
 export class PomodoroController {
@@ -83,6 +162,7 @@ export class PomodoroController {
     }
     if (localData.pomodoroSession) {
       this.session = { ...createDefaultSession(), ...localData.pomodoroSession };
+      this.session = sanitizeSessionRound(this.session, this.settings.cyclesBeforeLong);
     }
 
     this.reconcileExpiredState();
@@ -160,14 +240,15 @@ export class PomodoroController {
       return;
     }
     const durationMs = this.settings.focusMinutes * 60 * 1000;
+    const round = normalizeRound(this.session.round || 1, this.settings.cyclesBeforeLong);
     this.session = {
       ...createDefaultSession(),
       phase: PHASE.FOCUS,
-      round: this.session.round || 1,
+      round,
       endAt: Date.now() + durationMs,
       completedMessageUntil: null,
     };
-    this.commit();
+    this.commit("focus-start");
   }
 
   /**
@@ -210,7 +291,7 @@ export class PomodoroController {
     if (this.session.phase !== PHASE.FOCUS && this.session.phase !== PHASE.PAUSED) {
       return;
     }
-    const round = this.session.round;
+    const round = normalizeRound(this.session.round, this.settings.cyclesBeforeLong);
     this.session = { ...createDefaultSession(), round };
     this.commit();
   }
@@ -222,11 +303,17 @@ export class PomodoroController {
    */
   debugToggleFocusBreak() {
     const { phase, round } = this.session;
-    const safeRound = round || 1;
+    const safeRound = normalizeRound(round || 1, this.settings.cyclesBeforeLong);
 
     if (phase === PHASE.FOCUS || phase === PHASE.PAUSED) {
-      const durationMs = this.settings.shortBreakMinutes * 60 * 1000;
-      this.session.phase = PHASE.SHORT_BREAK;
+      const isLongBreak = isLongBreakRound(safeRound, this.settings.cyclesBeforeLong);
+      const breakPhase = isLongBreak ? PHASE.LONG_BREAK : PHASE.SHORT_BREAK;
+      const durationMs = isLongBreak
+        ? this.settings.longBreakMinutes * 60 * 1000
+        : this.settings.shortBreakMinutes * 60 * 1000;
+
+      this.session.phase = breakPhase;
+      this.session.round = safeRound;
       this.session.endAt = Date.now() + durationMs;
       this.session.pausedRemainingMs = null;
       this.session.pausedFromPhase = null;
@@ -234,8 +321,8 @@ export class PomodoroController {
       this.session.pendingBreak = null;
       this.session.completedMessageUntil = null;
       this.onComplete({ type: "focus-complete", round: safeRound, debug: true });
-      this.commit("debug-short-break");
-      return PHASE.SHORT_BREAK;
+      this.commit(isLongBreak ? "debug-long-break" : "debug-short-break");
+      return breakPhase;
     }
 
     const durationMs = this.settings.focusMinutes * 60 * 1000;
@@ -269,6 +356,7 @@ export class PomodoroController {
   async saveSettings(partial) {
     const wasActive = this.isActive();
     this.settings = { ...this.settings, ...partial };
+    this.session = sanitizeSessionRound(this.session, this.settings.cyclesBeforeLong);
     const { storageSyncSet } = await import("./storage-adapter.js");
     await storageSyncSet({ pomodoroSettings: this.settings });
     this.emitChange();
@@ -315,6 +403,7 @@ export class PomodoroController {
       return;
     }
     this.session = { ...createDefaultSession(), ...newSession };
+    this.session = sanitizeSessionRound(this.session, this.settings.cyclesBeforeLong);
     this.reconcileExpiredState();
     this.emitChange();
   }
@@ -374,7 +463,8 @@ export class PomodoroController {
     const { phase, round } = this.session;
 
     if (phase === PHASE.FOCUS) {
-      const isLongBreak = round >= this.settings.cyclesBeforeLong;
+      const safeRound = normalizeRound(round, this.settings.cyclesBeforeLong);
+      const isLongBreak = isLongBreakRound(safeRound, this.settings.cyclesBeforeLong);
       const breakPhase = isLongBreak ? PHASE.LONG_BREAK : PHASE.SHORT_BREAK;
       const durationMs =
         breakPhase === PHASE.LONG_BREAK
@@ -383,13 +473,14 @@ export class PomodoroController {
 
       // 专注结束：跳过 8 秒仪式，直接进入休息并交由场景播放烤棉花糖动画
       this.session.phase = breakPhase;
+      this.session.round = safeRound;
       this.session.endAt = Date.now() + durationMs;
       this.session.ceremonyStartedAt = null;
       this.session.pendingBreak = null;
       this.session.completedMessageUntil = null;
 
       if (fireComplete) {
-        this.onComplete({ type: "focus-complete", round });
+        this.onComplete({ type: "focus-complete", round: safeRound });
       }
       this.commit(fireComplete ? "focus-complete" : null);
       return;
@@ -453,7 +544,7 @@ export class PomodoroController {
       return;
     }
 
-    const nextRound = round + 1;
+    const nextRound = getNextRoundAfterShortBreak(round, this.settings.cyclesBeforeLong);
     if (this.settings.autoStartNext) {
       this.session = {
         ...createDefaultSession(),

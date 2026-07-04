@@ -1,118 +1,151 @@
 /**
- * 番茄钟提示音：篝火噼啪与柔和风铃，基于 Web Audio API 合成。
+ * 番茄钟音效：专注/休息开始提示音与休息背景音乐。
  */
 
-let audioContext = null;
+const SOUND_URLS = {
+  "focus-start": "./assets/floraphonic-short-punchy-sine-wave-ding-10-a-211748.mp3",
+  "break-start": "./assets/floraphonic-minimal-pop-click-ui-1-198301.mp3",
+};
+
+const REST_MUSIC_URL =
+  "./assets/Timber Hearth - Andrew Prahlow - SoundLoadMate.com.mp3";
+
+/** @type {Record<string, HTMLAudioElement>} */
+const sfxCache = {};
+
+/** @type {HTMLAudioElement | null} */
+let restMusic = null;
+
+/** 休息背景音乐默认音量（相对提示音更低） */
+const REST_MUSIC_VOLUME = 0.38;
+
+/** 提示音默认音量 */
+const SFX_VOLUME = 0.85;
 
 /**
- * 获取或创建 AudioContext（需用户交互后可用）。
- * @returns {AudioContext|null}
+ * 判断当前是否应屏蔽所有番茄钟声音。
+ * @returns {boolean}
  */
-function getContext() {
-  if (audioContext) {
-    return audioContext;
-  }
-  try {
-    audioContext = new AudioContext();
-    return audioContext;
-  } catch {
-    return null;
-  }
+function isAudioBlocked() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**
- * 播放指定类型的提示音。
- * @param {"focus-complete"|"break-complete"} type
- * @param {boolean} enabled 是否启用声音
+ * 将资源路径编码为可安全加载的 URL。
+ * @param {string} path 相对路径
+ * @returns {string}
+ */
+function encodeAssetPath(path) {
+  return encodeURI(path);
+}
+
+/**
+ * 获取或创建指定类型的提示音 Audio 实例。
+ * @param {"focus-start"|"break-start"} type 提示音类型
+ * @returns {HTMLAudioElement}
+ */
+function getSfx(type) {
+  if (!sfxCache[type]) {
+    const audio = new Audio(encodeAssetPath(SOUND_URLS[type]));
+    audio.preload = "auto";
+    audio.volume = SFX_VOLUME;
+    sfxCache[type] = audio;
+  }
+  return sfxCache[type];
+}
+
+/**
+ * 获取或创建休息背景音乐 Audio 实例（循环播放）。
+ * @returns {HTMLAudioElement}
+ */
+function getRestMusic() {
+  if (!restMusic) {
+    restMusic = new Audio(encodeAssetPath(REST_MUSIC_URL));
+    restMusic.preload = "auto";
+    restMusic.loop = true;
+    restMusic.volume = REST_MUSIC_VOLUME;
+  }
+  return restMusic;
+}
+
+/**
+ * 预加载单个提示音资源。
+ * @param {"focus-start"|"break-start"} type 提示音类型
+ * @returns {void}
+ */
+function preloadSound(type) {
+  const audio = getSfx(type);
+  audio.load();
+}
+
+/**
+ * 播放专注或休息开始提示音。
+ * @param {"focus-start"|"break-start"} type 提示类型
+ * @param {boolean} [enabled=true] 是否启用声音
  * @returns {void}
  */
 export function playSound(type, enabled = true) {
-  if (!enabled || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (!enabled || isAudioBlocked()) {
     return;
-  }
-  const ctx = getContext();
-  if (!ctx) {
-    return;
-  }
-  if (ctx.state === "suspended") {
-    ctx.resume();
   }
 
-  if (type === "focus-complete") {
-    playCrackle(ctx, 0.8);
+  const audio = getSfx(type);
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
+}
+
+/**
+ * 开始循环播放休息背景音乐。
+ * @param {boolean} [enabled=true] 是否启用声音
+ * @returns {void}
+ */
+export function startRestMusic(enabled = true) {
+  if (!enabled || isAudioBlocked()) {
+    return;
+  }
+
+  const music = getRestMusic();
+  if (music.paused) {
+    music.play().catch(() => {});
+  }
+}
+
+/**
+ * 停止休息背景音乐并重置播放进度。
+ * @returns {void}
+ */
+export function stopRestMusic() {
+  if (!restMusic) {
+    return;
+  }
+  restMusic.pause();
+  restMusic.currentTime = 0;
+}
+
+/**
+ * 根据番茄钟阶段同步休息背景音乐（短/长休息播放，其余阶段停止）。
+ * @param {string} phase 当前阶段标识
+ * @param {boolean} [enabled=true] 是否启用声音
+ * @returns {void}
+ */
+export function syncRestMusicForPhase(phase, enabled = true) {
+  const inBreak = phase === "short_break" || phase === "long_break";
+  if (inBreak && enabled) {
+    startRestMusic(true);
   } else {
-    playChime(ctx, 0.5);
+    stopRestMusic();
   }
 }
 
 /**
- * 合成篝火噼啪声。
- * @param {AudioContext} ctx
- * @param {number} durationSec
- * @returns {void}
- */
-function playCrackle(ctx, durationSec) {
-  const bufferSize = ctx.sampleRate * durationSec;
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-
-  for (let i = 0; i < bufferSize; i += 1) {
-    const t = i / ctx.sampleRate;
-    const env = Math.exp(-t * 2.5) * (0.6 + Math.random() * 0.4);
-    data[i] = (Math.random() * 2 - 1) * env * 0.35;
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = 800;
-  filter.Q.value = 0.8;
-
-  const gain = ctx.createGain();
-  gain.gain.value = 0.25;
-
-  source.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-  source.start();
-}
-
-/**
- * 合成柔和风铃声。
- * @param {AudioContext} ctx
- * @param {number} durationSec
- * @returns {void}
- */
-function playChime(ctx, durationSec) {
-  const frequencies = [523.25, 659.25, 783.99];
-  const now = ctx.currentTime;
-
-  frequencies.forEach((freq, index) => {
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + durationSec + index * 0.08);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now + index * 0.06);
-    osc.stop(now + durationSec + 0.3);
-  });
-}
-
-/**
- * 在用户首次交互时预热 AudioContext。
+ * 在用户首次交互时预加载全部音频资源。
  * @returns {void}
  */
 export function warmupAudio() {
-  const ctx = getContext();
-  if (ctx?.state === "suspended") {
-    ctx.resume();
+  if (isAudioBlocked()) {
+    return;
   }
+  preloadSound("focus-start");
+  preloadSound("break-start");
+  getRestMusic().load();
 }

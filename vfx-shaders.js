@@ -16,8 +16,8 @@ export const starVertexShader = `
   void main() {
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     float softPulse = sin(uTime * uAnimationSpeed * aTwinkleSpeed + aPhase);
-    float slowPulse = sin(uTime * uAnimationSpeed * aTwinkleSpeed * 0.37 + aPhase * 1.7);
-    vTwinkle = 0.88 + softPulse * 0.08 + slowPulse * 0.04;
+    float slowPulse = sin(uTime * uAnimationSpeed * aTwinkleSpeed * 0.22 + aPhase * 1.7);
+    vTwinkle = 0.9 + softPulse * 0.055 + slowPulse * 0.03;
     vBrightness = aBrightness;
     vTemperature = aTemperature;
     gl_PointSize = aSize * uPixelRatio * vTwinkle * (180.0 / max(40.0, -mvPosition.z));

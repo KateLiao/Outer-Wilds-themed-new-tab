@@ -1,9 +1,10 @@
 /**
  * 番茄钟 HUD 与设置面板 UI 控制器。
  */
-import { PHASE, formatCountdown, DEFAULT_SETTINGS } from "./pomodoro.js";
+import { PHASE, formatCountdown, DEFAULT_SETTINGS, formatRoundStatus } from "./pomodoro.js";
 import { onStorageChanged } from "./storage-adapter.js";
 import { playSound, warmupAudio } from "./audio.js";
+import { showConfirm } from "./confirm-dialog.js";
 
 const LABELS = {
   [PHASE.IDLE]: "Campfire clock",
@@ -178,12 +179,15 @@ export function initPomodoroUI(pomodoro, hooks) {
   }
 
   /**
-   * 确认对话框。
-   * @param {string} message
-   * @returns {boolean}
+   * 显示统一风格确认弹窗。
+   * @param {object} options
+   * @param {string} options.message 主文案
+   * @param {string} [options.title] 标题
+   * @param {'default'|'danger'} [options.variant] 确认按钮样式
+   * @returns {Promise<boolean>}
    */
-  function confirmAction(message) {
-    return window.confirm(message);
+  function confirmAction(options) {
+    return showConfirm(options);
   }
 
   /**
@@ -197,8 +201,14 @@ export function initPomodoroUI(pomodoro, hooks) {
     if (phase === PHASE.FOCUS) {
       pomodoroActions.append(
         makeActionButton("暂停", "btn-secondary", () => pomodoro.pause()),
-        makeActionButton("放弃", "btn-danger", () => {
-          if (confirmAction("确定放弃本轮专注？不会获得烤棉花糖奖励。")) {
+        makeActionButton("放弃", "btn-danger", async () => {
+          const confirmed = await confirmAction({
+            title: "放弃专注",
+            message: "确定放弃本轮专注？不会获得烤棉花糖奖励。",
+            confirmLabel: "放弃",
+            variant: "danger",
+          });
+          if (confirmed) {
             pomodoro.abandon();
           }
         }),
@@ -206,16 +216,27 @@ export function initPomodoroUI(pomodoro, hooks) {
     } else if (phase === PHASE.PAUSED) {
       pomodoroActions.append(
         makeActionButton("继续", "btn-primary", () => pomodoro.resume()),
-        makeActionButton("放弃", "btn-danger", () => {
-          if (confirmAction("确定放弃本轮专注？不会获得烤棉花糖奖励。")) {
+        makeActionButton("放弃", "btn-danger", async () => {
+          const confirmed = await confirmAction({
+            title: "放弃专注",
+            message: "确定放弃本轮专注？不会获得烤棉花糖奖励。",
+            confirmLabel: "放弃",
+            variant: "danger",
+          });
+          if (confirmed) {
             pomodoro.abandon();
           }
         }),
       );
     } else if (phase === PHASE.SHORT_BREAK || phase === PHASE.LONG_BREAK) {
       pomodoroActions.append(
-        makeActionButton("跳过休息", "btn-secondary", () => {
-          if (confirmAction("确定跳过休息？")) {
+        makeActionButton("跳过休息", "btn-secondary", async () => {
+          const confirmed = await confirmAction({
+            title: "跳过休息",
+            message: "确定跳过休息？",
+            confirmLabel: "跳过",
+          });
+          if (confirmed) {
             pomodoro.skipBreak();
           }
         }),
@@ -232,8 +253,8 @@ export function initPomodoroUI(pomodoro, hooks) {
       return;
     }
     if (phase === PHASE.FOCUS || phase === PHASE.PAUSED) {
-      debugPhaseButton.textContent = "调试 → 短休息";
-      debugPhaseButton.title = "切换到短休息（触发烤棉花糖动画）";
+      debugPhaseButton.textContent = "调试 → 休息";
+      debugPhaseButton.title = "切换到休息（短休息或长休息，触发烤棉花糖动画）";
     } else {
       debugPhaseButton.textContent = "调试 → 专注";
       debugPhaseButton.title = "切换到专注中";
@@ -261,19 +282,10 @@ export function initPomodoroUI(pomodoro, hooks) {
         pomodoroCountdown.textContent = "🍡";
       } else if (phase === PHASE.ROAST_CEREMONY) {
         // 兼容旧会话：仪式阶段已废弃，按休息态展示
-        pomodoroStatus.textContent = `短休息 · 第 ${round}/${settings.cyclesBeforeLong} 轮`;
+        pomodoroStatus.textContent = formatRoundStatus(phase, round, settings.cyclesBeforeLong);
         pomodoroCountdown.textContent = formatCountdown(remainingMs);
-      } else if (phase === PHASE.FOCUS) {
-        pomodoroStatus.textContent = `专注中 · 第 ${round}/${settings.cyclesBeforeLong} 轮`;
-        pomodoroCountdown.textContent = formatCountdown(remainingMs);
-      } else if (phase === PHASE.PAUSED) {
-        pomodoroStatus.textContent = `已暂停 · 第 ${round}/${settings.cyclesBeforeLong} 轮`;
-        pomodoroCountdown.textContent = formatCountdown(remainingMs);
-      } else if (phase === PHASE.SHORT_BREAK) {
-        pomodoroStatus.textContent = `短休息 · 第 ${round}/${settings.cyclesBeforeLong} 轮`;
-        pomodoroCountdown.textContent = formatCountdown(remainingMs);
-      } else if (phase === PHASE.LONG_BREAK) {
-        pomodoroStatus.textContent = "长休息";
+      } else if (phase === PHASE.FOCUS || phase === PHASE.PAUSED || phase === PHASE.SHORT_BREAK || phase === PHASE.LONG_BREAK) {
+        pomodoroStatus.textContent = formatRoundStatus(phase, round, settings.cyclesBeforeLong);
         pomodoroCountdown.textContent = formatCountdown(remainingMs);
       }
 
@@ -315,7 +327,13 @@ export function initPomodoroUI(pomodoro, hooks) {
   if (debugPhaseButton) {
     debugPhaseButton.addEventListener("click", () => {
       const nextPhase = pomodoro.debugToggleFocusBreak();
-      showToast(nextPhase === PHASE.SHORT_BREAK ? "调试：短休息" : "调试：专注中");
+      const debugLabel =
+        nextPhase === PHASE.SHORT_BREAK
+          ? "调试：短休息"
+          : nextPhase === PHASE.LONG_BREAK
+            ? "调试：长休息"
+            : "调试：专注中";
+      showToast(debugLabel);
     });
   }
 
@@ -390,7 +408,7 @@ export function initPomodoroUI(pomodoro, hooks) {
         remainingMs: pomodoro.getRemainingMs(),
       });
       if (pending.type === "phase-expired" && pending.phase === PHASE.FOCUS) {
-        playSound("focus-complete", pomodoro.getSettings().soundEnabled);
+        playSound("break-start", pomodoro.getSettings().soundEnabled);
       }
     }
   });
