@@ -1,19 +1,35 @@
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
+import * as THREE from "./node_modules/three/build/three.module.js";
+import { OrbitControls } from "./node_modules/three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "./node_modules/three/examples/jsm/loaders/GLTFLoader.js";
+import { EffectComposer } from "./node_modules/three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "./node_modules/three/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "./node_modules/three/examples/jsm/postprocessing/ShaderPass.js";
+import { UnrealBloomPass } from "./node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "./node_modules/three/examples/jsm/postprocessing/OutputPass.js";
+import { FXAAShader } from "./node_modules/three/examples/jsm/shaders/FXAAShader.js";
 import { OuterWildsCosmicVFX } from "./outer-wilds-vfx.js";
 
-const canvas = document.querySelector("#scene");
-const clockEl = document.querySelector("#clock");
-const dateEl = document.querySelector("#date");
-const focusButton = document.querySelector("#focusButton");
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/**
+ * 初始化篝火 3D 场景并与番茄钟联动。
+ * @param {object} [options]
+ * @param {() => boolean} [options.canManualRoast] 是否允许手动进入烤火视角
+ * @returns {Promise<object>} 场景控制桥接对象
+ */
+export async function initCampfireScene(options = {}) {
+  const canManualRoast = options.canManualRoast ?? (() => true);
+
+  const canvas = document.querySelector("#scene");
+  const clockEl = document.querySelector("#clock");
+  const dateEl = document.querySelector("#date");
+  const focusButton = document.querySelector("#focusButton");
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let motionScale = 1;
+  let focusIntensityActive = false;
+
+  if (!canvas) {
+    throw new Error("Canvas element #scene not found");
+  }
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x050712, 0.018);
@@ -26,6 +42,9 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
   alpha: false,
 });
+if (!renderer.getContext()) {
+  throw new Error("WebGL unavailable");
+}
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -334,20 +353,6 @@ replaceWithReferenceLineArt(coordinateGlyphs, "./assets/eye-coordinates-referenc
   pad: 6,
 });
 
-const timeRings = new THREE.Group();
-root.add(timeRings);
-const ringMats = [
-  new THREE.LineBasicMaterial({ color: 0xff8b35, transparent: true, opacity: 0.78 }),
-  new THREE.LineBasicMaterial({ color: 0xf7f0d4, transparent: true, opacity: 0.52 }),
-  new THREE.LineBasicMaterial({ color: 0x76e5d2, transparent: true, opacity: 0.46 }),
-];
-const hourHand = makeNeedle(1.35, 0xff8b35);
-const minuteHand = makeNeedle(1.9, 0xf7f0d4);
-const secondHand = makeNeedle(2.3, 0x76e5d2);
-timeRings.add(hourHand, minuteHand, secondHand);
-timeRings.rotation.x = -Math.PI / 2;
-timeRings.position.y = 0.06;
-
 const comet = new THREE.Mesh(
   new THREE.SphereGeometry(0.08, 16, 12),
   new THREE.MeshBasicMaterial({ color: 0xf7f0d4 }),
@@ -362,30 +367,46 @@ scene.add(camera);
 let clickBurst = 0;
 canvas.addEventListener("pointerdown", () => {
   const now = performance.now();
-  if (now - lastPointerDownAt < 340) {
-    enterRoastView();
+  if (now - lastPointerDownAt < 340 && canManualRoast()) {
+    enterRoastView(false);
   }
   lastPointerDownAt = now;
   clickBurst = 1;
 });
 
 canvas.addEventListener("dblclick", () => {
-  enterRoastView();
+  if (canManualRoast()) {
+    enterRoastView(false);
+  }
 });
 
 focusButton.addEventListener("click", () => {
-  roastViewActive = false;
-  roastTransitioningOut = true;
-  controls.enabled = true;
+  exitRoastView();
 });
 
-function enterRoastView() {
+/**
+ * 进入烤棉花糖近景；番茄钟完成时可强制进入。
+ * @param {boolean} [forced=false] 是否为专注完成触发的强制烤火
+ */
+function enterRoastView(forced = false) {
+  if (!forced && !canManualRoast()) {
+    return;
+  }
   roastViewActive = true;
   roastTransitioningOut = false;
   controls.enabled = false;
   roastingRig.visible = true;
   roastReach = 0;
-  clickBurst = 1.8;
+  clickBurst = forced ? 2.2 : 1.8;
+}
+
+/**
+ * 退出烤火视角，回到默认营地相机。
+ */
+function exitRoastView() {
+  roastViewActive = false;
+  roastTransitioningOut = true;
+  controls.enabled = true;
 }
 
 function makeCirclePoints(radius, segments) {
@@ -903,14 +924,6 @@ function replaceWithReferenceLineArt(sprite, src, options = {}) {
   image.src = src;
 }
 
-function makeNeedle(length, color) {
-  const geometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0.02, 0),
-    new THREE.Vector3(0, 0.02, -length),
-  ]);
-  return new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.86 }));
-}
-
 function updateClock(now) {
   const hours = now.getHours();
   const minutes = now.getMinutes();
@@ -927,9 +940,6 @@ function updateClock(now) {
   const secondAngle = ((seconds + ms / 1000) / 60) * Math.PI * 2;
   const minuteAngle = ((minutes + seconds / 60) / 60) * Math.PI * 2;
   const hourAngle = (((hours % 12) + minutes / 60) / 12) * Math.PI * 2;
-  secondHand.rotation.y = -secondAngle;
-  minuteHand.rotation.y = -minuteAngle;
-  hourHand.rotation.y = -hourAngle;
 
   return { hours, minutes, seconds, secondAngle, minuteAngle, hourAngle };
 }
@@ -938,10 +948,11 @@ function animate(time = 0) {
   const t = time * 0.001;
   const now = new Date();
   const clock = updateClock(now);
-  const motion = reducedMotion ? 0.18 : 1;
+  const motion = (reducedMotion ? 0.18 : 1) * motionScale;
   const beat = 0.82 + Math.sin(clock.secondAngle * 6 + t * 4) * 0.06;
+  const focusBoost = focusIntensityActive ? 1.1 : 1;
 
-  fireLight.intensity = 15 + Math.sin(t * 7) * 2.4 + clickBurst * 8;
+  fireLight.intensity = (15 + Math.sin(t * 7) * 2.4 + clickBurst * 8) * focusBoost;
   fireLight.color.setHSL(0.07 + Math.sin(t * 2) * 0.014, 1, 0.58);
 
   flames.forEach((flame, index) => {
@@ -971,7 +982,6 @@ function animate(time = 0) {
   clickBurst *= 0.92;
 
   cosmicVFX.update(t, camera);
-  groundRing.rotation.z = -clock.secondAngle;
   horizonGlow.material.opacity = 0.1 + Math.sin(t * 0.7) * 0.025;
   stones.rotation.y = Math.sin(t * 0.17) * 0.015;
   forest.children.forEach((tree) => {
@@ -1044,3 +1054,16 @@ window.addEventListener("beforeunload", () => {
   composer.dispose?.();
 });
 animate();
+
+  return {
+    enterRoastView,
+    exitRoastView,
+    isRoastViewActive: () => roastViewActive,
+    setMotionScale: (scale) => {
+      motionScale = scale;
+    },
+    setFocusIntensity: (active) => {
+      focusIntensityActive = active;
+    },
+  };
+}
