@@ -1,30 +1,59 @@
 # 星火篝火番茄钟
 
-Outer Wilds 风格 3D 篝火新标签页 Chrome 扩展，内置经典番茄钟（专注 → 烤棉花糖 → 休息），并配有提示音与休息背景音乐。
+Outer Wilds 风格 3D 篝火新标签页 Chrome 扩展，内置经典番茄钟（专注 -> 烤棉花糖 -> 休息），配有提示音、休息背景音乐与沉浸式星空篝火场景。
 
-## 快速开始
+[![Deploy demo](https://github.com/KateLiao/Outer-Wilds-themed-new-tab/actions/workflows/pages.yml/badge.svg)](https://github.com/KateLiao/Outer-Wilds-themed-new-tab/actions/workflows/pages.yml)
+[![Package extension](https://github.com/KateLiao/Outer-Wilds-themed-new-tab/actions/workflows/release.yml/badge.svg)](https://github.com/KateLiao/Outer-Wilds-themed-new-tab/actions/workflows/release.yml)
+
+![星火篝火番茄钟新标签页](./docs/screenshots/newtab-home.jpg)
+
+![休息烤棉花糖](./docs/screenshots/break.jpg)
+
+## 一键预览
+
+打开在线演示页即可先看效果：
+
+[Live Demo](https://kateliao.github.io/Outer-Wilds-themed-new-tab/)
+
+> 在线演示页会使用 `localStorage` 保存设置。Chrome 扩展安装后会改用 `chrome.storage`，并启用后台计时与浏览器通知。
+
+## 安装为 Chrome 扩展
+
+Chrome 出于安全限制，不允许从 GitHub 直接“一键安装”未上架扩展。这个项目提供自动打包好的 ZIP，下载后只需加载一次解压目录。
+
+1. 打开 [Releases](https://github.com/KateLiao/Outer-Wilds-themed-new-tab/releases)
+2. 下载最新版 `outer-wilds-new-tab.zip`
+3. 解压 ZIP 到本地任意目录
+4. 打开 Chrome 的 `chrome://extensions`
+5. 开启右上角「开发者模式」
+6. 点击「加载已解压的扩展程序」，选择刚解压的目录
+7. 打开新标签页即可使用
+
+如果 Release 页面暂时没有 ZIP，也可以按下面的开发者安装方式本地打包。
+
+## 开发者安装
+
+```bash
+npm install
+npm run pack:extension
+```
+
+执行后会生成：
+
+```text
+release/outer-wilds-new-tab.zip
+```
+
+你也可以直接加载项目根目录：
 
 ```bash
 npm install
 npm run build
 ```
 
-| 命令 | 说明 |
-|------|------|
-| `npm run build` | 将 `app.js` 及 Three.js 依赖打包为 `dist/app.bundle.js`（扩展加载 3D 场景必需） |
-| `npm start` | 本地静态预览（`http://localhost:3000`） |
+然后在 `chrome://extensions` 中选择本项目根目录作为「已解压的扩展程序」。
 
-> 修改 `app.js`、`outer-wilds-vfx.js` 或 `vfx-shaders.js` 后，请重新执行 `npm run build`，再在 Chrome 扩展页点击「重新加载」。
-
-## 安装为 Chrome 扩展
-
-1. 执行 `npm install` 与 `npm run build`
-2. 打开 Chrome → `chrome://extensions`
-3. 开启「开发者模式」
-4. 点击「加载已解压的扩展程序」，选择本项目根目录
-5. 打开新标签页即可使用
-
-## 本地预览（无扩展 API）
+## 本地预览
 
 ```bash
 npm install
@@ -38,6 +67,50 @@ npm start
 | `http://localhost:3000/index.html` | 同 UI 的备用入口 |
 
 本地开发时 `chrome.storage` 会降级为 `localStorage`，后台计时与浏览器通知不可用，番茄钟核心流程仍可测试。
+
+## 功能截图
+
+![番茄钟计时](./docs/screenshots/pomodoro.jpg)
+
+## 常用命令
+
+| 命令 | 说明 |
+|------|------|
+| `npm run build` | 将 `app.js` 及 Three.js 依赖打包为 `dist/app.bundle.js` |
+| `npm run pack:extension` | 构建并生成可上传 Release / 可本地安装的扩展 ZIP |
+| `npm start` | 启动本地静态预览服务 |
+
+修改 `app.js`、`outer-wilds-vfx.js` 或 `vfx-shaders.js` 后，请重新执行 `npm run build`，再在 Chrome 扩展页点击「重新加载」。
+
+## 自动部署与发布
+
+这个仓库已经内置 GitHub Actions：
+
+| 工作流 | 触发方式 | 产物 |
+|--------|----------|------|
+| `Deploy demo` | 推送到 `main` / `master` 或手动运行 | 部署在线演示页到 GitHub Pages |
+| `Package extension` | 推送 `v*` tag 或手动运行 | 生成 `outer-wilds-new-tab.zip` |
+
+第一次使用 GitHub Pages 时，请在仓库 `Settings -> Pages` 中将 Source 设为 `GitHub Actions`。
+
+发布新版本示例：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+推送 tag 后，`Package extension` 会自动构建 ZIP 并创建 GitHub Release。
+
+## 功能摘要
+
+- 经典番茄钟：默认 25 / 5 / 15 分钟，4 轮一长休息，参数可在设置中调整
+- 场景联动：专注时弱化时钟、增强篝火动效；专注完成立即进入烤棉花糖近景并同时开始休息
+- 音频：专注开始 ding、休息开始 pop；短/长休息循环播放 Timber Hearth 背景音乐（可在设置中关闭）
+- 后台可靠：关闭标签后由 Service Worker 继续计时；标签在后台时推送浏览器通知
+- 确认交互：放弃专注、跳过休息使用统一弹窗，替代浏览器原生 `confirm`
+- 可选手动烤火：Idle 状态下双击场景可进入烤棉花糖视角（设置中可关闭）
+- 调试：左上角按钮可快速切换「专注中 <-> 短休息」（开发调试用）
 
 ## 项目结构
 
@@ -58,17 +131,8 @@ npm start
 | `dist/app.bundle.js` | 构建产物，由 `newtab-main.js` 动态加载 |
 | `assets/` | GLB 模型、参考图与音频资源 |
 | `icons/` | 扩展图标 |
+| `docs/screenshots/` | README 展示截图 |
 | `docs/PRD.md` | 产品需求文档 |
-
-## 功能摘要
-
-- **经典番茄钟**：默认 25 / 5 / 15 分钟，4 轮一长休息，参数可在设置中调整
-- **场景联动**：专注时弱化时钟、增强篝火动效；专注完成立即进入烤棉花糖近景并同时开始休息
-- **音频**：专注开始 ding、休息开始 pop；短/长休息循环播放 Timber Hearth 背景音乐（可在设置中关闭）
-- **后台可靠**：关闭标签后由 Service Worker 继续计时；标签在后台时推送浏览器通知
-- **确认交互**：放弃专注、跳过休息使用统一弹窗，替代浏览器原生 `confirm`
-- **可选手动烤火**：Idle 状态下双击场景可进入烤棉花糖视角（设置中可关闭）
-- **调试**：左上角按钮可快速切换「专注中 ⇄ 短休息」（开发调试用）
 
 ## 音频资源
 
@@ -80,11 +144,22 @@ npm start
 
 受设置项「专注/休息开始提示音」控制；用户开启「减少动态效果」时也会静音。
 
+## 3D 模型资源
+
+场景中的飞船与烤棉花糖道具使用了社区创作者在 Sketchfab 上分享的模型，在此特别感谢：
+
+| 用途 | 文件 | 作者 | 许可 | 来源 |
+|------|------|------|------|------|
+| 背景飞船 | `assets/outer_wilds__the_ship.glb` | [courgeon](https://sketchfab.com/courgeon) | [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/) | [Outer Wilds : The ship](https://sketchfab.com/3d-models/outer-wilds-the-ship-f6797d8650794c8387708f7ef78ee0d5) |
+| 烤棉花糖 | `assets/marshmallow_stick.glb` | [Maxitaxx](https://sketchfab.com/maxitaxx) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | [Marshmallow Stick](https://sketchfab.com/3d-models/marshmallow-stick-5b52a3e2c43044619f221777b9342ea2) |
+
+感谢 **courgeon** 与 **Maxitaxx** 的精美建模，让篝火场景更贴近 Outer Wilds 的氛围。
+
 ## 技术说明
 
-- **Three.js 加载**：扩展 CSP 不允许裸模块名，因此通过 Rollup 将 Three.js 与场景代码打包为单一 ES 模块
-- **容错**：3D 场景通过动态 `import("./dist/app.bundle.js")` 加载，WebGL 失败时不影响番茄钟
-- **持久化**：设置存 `chrome.storage.sync`，会话存 `chrome.storage.local`
+- Three.js 加载：扩展 CSP 不允许裸模块名，因此通过 Rollup 将 Three.js 与场景代码打包为单一 ES 模块
+- 容错：3D 场景通过动态 `import("./dist/app.bundle.js")` 加载，WebGL 失败时不影响番茄钟
+- 持久化：设置存 `chrome.storage.sync`，会话存 `chrome.storage.local`
 
 ## 文档
 

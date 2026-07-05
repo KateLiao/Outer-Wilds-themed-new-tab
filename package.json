@@ -1,16 +1,31 @@
 {
-  "name": "threejs",
+  "name": "outer-wilds-themed-new-tab",
   "version": "1.0.0",
-  "description": "",
+  "description": "Outer Wilds 风格 3D 篝火新标签页 Chrome 扩展，内置番茄钟。",
   "main": "app.js",
   "scripts": {
     "build": "rollup -c",
-    "start": "npx serve . -p 3000",
+    "start": "node scripts/serve-static.mjs 3000",
+    "pack:extension": "npm run build && rm -rf release && mkdir -p release && zip -r release/outer-wilds-new-tab.zip manifest.json newtab.html index.html styles.css newtab-main.js pomodoro.js pomodoro-ui.js confirm-dialog.js audio.js storage-adapter.js background.js dist assets icons",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "chrome-extension",
+    "new-tab",
+    "threejs",
+    "pomodoro",
+    "outer-wilds"
+  ],
+  "author": "KateLiao",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KateLiao/Outer-Wilds-themed-new-tab.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KateLiao/Outer-Wilds-themed-new-tab/issues"
+  },
+  "homepage": "https://kateliao.github.io/Outer-Wilds-themed-new-tab/",
   "type": "module",
   "dependencies": {
     "three": "^0.165.0"
