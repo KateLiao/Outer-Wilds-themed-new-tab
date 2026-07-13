@@ -91,8 +91,15 @@ function closeConfirm(confirmed) {
     return;
   }
 
-  overlayEl.hidden = true;
+  // 必须先把焦点移出即将隐藏的弹层，否则 Chrome 会阻止 aria-hidden 并记录警告。
+  if (previousFocus instanceof HTMLElement && previousFocus.isConnected && typeof previousFocus.focus === "function") {
+    previousFocus.focus({ preventScroll: true });
+  } else if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
+
   overlayEl.inert = true;
+  overlayEl.hidden = true;
   overlayEl.setAttribute("aria-hidden", "true");
 
   if (keydownHandler) {
@@ -104,9 +111,6 @@ function closeConfirm(confirmed) {
   resolvePending = null;
   resolve(confirmed);
 
-  if (previousFocus instanceof HTMLElement && typeof previousFocus.focus === "function") {
-    previousFocus.focus({ preventScroll: true });
-  }
   previousFocus = null;
 }
 

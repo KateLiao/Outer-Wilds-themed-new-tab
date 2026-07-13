@@ -23,9 +23,12 @@ export async function initCampfireScene(options = {}) {
   const dateEl = document.querySelector("#date");
   const focusButton = document.querySelector("#focusButton");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const saveData = Boolean(navigator.connection?.saveData);
 
   let motionScale = 1;
   let focusIntensityActive = false;
+  let dockInteractionState = { active: false, mode: "closed", moduleId: null };
+  let dockInfluence = 0;
 
   if (!canvas) {
     throw new Error("Canvas element #scene not found");
@@ -45,7 +48,16 @@ const renderer = new THREE.WebGLRenderer({
 if (!renderer.getContext()) {
   throw new Error("WebGL unavailable");
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const getRenderPixelRatio = () => {
+  const cap = reducedMotion || saveData ? 1 : window.innerWidth < 720 ? 1.25 : 1.5;
+  return Math.min(window.devicePixelRatio, cap);
+};
+const getPostPixelRatio = () => {
+  const cap = reducedMotion || saveData ? 1 : window.innerWidth < 720 ? 1.15 : 1.35;
+  return Math.min(window.devicePixelRatio, cap);
+};
+
+renderer.setPixelRatio(getRenderPixelRatio());
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -53,7 +65,7 @@ renderer.toneMappingExposure = 1.44;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const bloomPixelRatio = Math.min(window.devicePixelRatio, window.innerWidth < 720 ? 1.35 : 1.75);
+const bloomPixelRatio = getPostPixelRatio();
 const composer = new EffectComposer(renderer);
 composer.setPixelRatio(bloomPixelRatio);
 composer.setSize(window.innerWidth, window.innerHeight);
@@ -89,6 +101,8 @@ controls.target.set(0, 1.1, 0);
 
 const defaultCameraPosition = new THREE.Vector3(0, 6.4, 16);
 const defaultControlsTarget = new THREE.Vector3(0, 1.1, 0);
+const dockCameraPosition = new THREE.Vector3(2.9, 6.4, 16);
+const dockControlsTarget = new THREE.Vector3(2.15, 1.1, 0);
 const roastCameraPosition = new THREE.Vector3(0.72, 1.58, 3.32);
 const roastControlsTarget = new THREE.Vector3(0.18, 1.08, 0.08);
 let roastViewActive = false;
@@ -355,7 +369,7 @@ const sparks = new THREE.Points(
 root.add(sparks);
 
 const cosmicVFX = new OuterWildsCosmicVFX({
-  starCount: window.innerWidth < 720 ? 6000 : 11000,
+  starCount: reducedMotion || saveData ? 3500 : window.innerWidth < 720 ? 5000 : 8000,
   supernovaIntensity: 0,
   dustIntensity: 0.085,
   orbitLineOpacity: 0.14,
@@ -449,6 +463,7 @@ function enterRoastView(forced = false) {
   if (!forced && !canManualRoast()) {
     return;
   }
+  ensureRoastingModelLoaded();
   roastViewActive = true;
   roastTransitioningOut = false;
   controls.enabled = false;
@@ -692,14 +707,23 @@ function makeRoastingRig() {
     holderEnd,
     emberLight,
     stick,
-  };
-  loadModelIntoGroup(modelHolder, "./assets/marshmallow_stick.glb", {
     fallback,
+    modelRequested: false,
+  };
+  return group;
+}
+
+function ensureRoastingModelLoaded() {
+  if (roastingRig.userData.modelRequested) {
+    return;
+  }
+  roastingRig.userData.modelRequested = true;
+  loadModelIntoGroup(roastingRig.userData.modelHolder, "./assets/marshmallow_stick.glb", {
+    fallback: roastingRig.userData.fallback,
     targetMaxSize: 1.8,
     center: true,
     name: "Marshmallow stick",
   });
-  return group;
 }
 
 function makeCylinderBetween(start, end, radius, material) {
@@ -1028,17 +1052,65 @@ function updateClock(now) {
   return { hours, minutes, seconds, secondAngle, minuteAngle, hourAngle };
 }
 
+let animationFrameId = null;
+let lastRenderAt = 0;
+
+function getFrameInterval() {
+  if (document.hidden) {
+    return Infinity;
+  }
+  if (!document.hasFocus()) {
+    return 1000 / 15;
+  }
+  if (reducedMotion || saveData) {
+    return 1000 / 30;
+  }
+  return 1000 / 60;
+}
+
+function requestNextFrame() {
+  animationFrameId = requestAnimationFrame(animate);
+}
+
+function startAnimation() {
+  if (animationFrameId !== null) {
+    return;
+  }
+  lastRenderAt = 0;
+  requestNextFrame();
+}
+
+function stopAnimation() {
+  if (animationFrameId === null) {
+    return;
+  }
+  cancelAnimationFrame(animationFrameId);
+  animationFrameId = null;
+}
+
 function animate(time = 0) {
+  animationFrameId = null;
+  const frameInterval = getFrameInterval();
+  if (frameInterval === Infinity) {
+    return;
+  }
+  if (lastRenderAt && time - lastRenderAt < frameInterval - 1) {
+    requestNextFrame();
+    return;
+  }
+  lastRenderAt = time;
   const t = time * 0.001;
   const now = new Date();
   const clock = updateClock(now);
-  const motion = (reducedMotion ? 0.18 : 1) * motionScale;
+  const dockTarget = dockInteractionState.active ? (dockInteractionState.mode === "pinned" ? 1 : 0.72) : 0;
+  dockInfluence += (dockTarget - dockInfluence) * 0.055;
+  const motion = (reducedMotion ? 0.18 : 1) * motionScale * (1 - dockInfluence * 0.16);
   const beat = 0.82 + Math.sin(clock.secondAngle * 6 + t * 4) * 0.06;
   const emberPulse = 0.86
     + Math.sin(t * 7.4) * 0.07
     + Math.sin(t * 13.7 + 1.8) * 0.045
     + clickBurst * 0.18;
-  const focusBoost = focusIntensityActive ? 1.1 : 1;
+  const focusBoost = (focusIntensityActive ? 1.1 : 1) * (1 + dockInfluence * 0.035);
 
   fireLight.intensity = (26 + emberPulse * 8 + clickBurst * 8) * focusBoost;
   fireLight.position.set(
@@ -1131,18 +1203,26 @@ function animate(time = 0) {
     roastingRig.userData.emberLight.intensity = 0.45 + Math.sin(t * 4.2) * 0.15;
   }
 
+  if (!roastViewActive && roastBlend <= 0.015) {
+    const dockEase = dockInfluence * dockInfluence * (3 - 2 * dockInfluence);
+    const targetCameraX = THREE.MathUtils.lerp(defaultCameraPosition.x, dockCameraPosition.x, dockEase);
+    const targetControlsX = THREE.MathUtils.lerp(defaultControlsTarget.x, dockControlsTarget.x, dockEase);
+    camera.position.x += (targetCameraX - camera.position.x) * 0.045;
+    controls.target.x += (targetControlsX - controls.target.x) * 0.052;
+  }
+
   controls.update();
   if (!roastViewActive) {
     controls.target.y = Math.max(0.72, controls.target.y);
     camera.position.y = Math.max(1.05, camera.position.y);
   }
   composer.render();
-  requestAnimationFrame(animate);
+  requestNextFrame();
 }
 
 function handleResize() {
-  const pixelRatio = Math.min(window.devicePixelRatio, 2);
-  const postPixelRatio = Math.min(window.devicePixelRatio, window.innerWidth < 720 ? 1.35 : 1.75);
+  const pixelRatio = getRenderPixelRatio();
+  const postPixelRatio = getPostPixelRatio();
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(pixelRatio);
@@ -1158,11 +1238,21 @@ function handleResize() {
 }
 
 window.addEventListener("resize", handleResize);
+window.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopAnimation();
+  } else {
+    startAnimation();
+  }
+});
+window.addEventListener("focus", startAnimation);
+window.addEventListener("blur", startAnimation);
 window.addEventListener("beforeunload", () => {
+  stopAnimation();
   cosmicVFX.dispose();
   composer.dispose?.();
 });
-animate();
+startAnimation();
 
   return {
     enterRoastView,
@@ -1173,6 +1263,13 @@ animate();
     },
     setFocusIntensity: (active) => {
       focusIntensityActive = active;
+    },
+    setDockInteractionState: (state) => {
+      dockInteractionState = {
+        active: Boolean(state?.active),
+        mode: state?.mode ?? "closed",
+        moduleId: state?.moduleId ?? null,
+      };
     },
   };
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>星火篝火番茄钟</title>
+    <title>新标签页</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -26,11 +26,7 @@
         </div>
       </section>
 
-      <button id="startFocusButton" class="start-focus-button" type="button" aria-label="打开番茄钟设置">
-        🍅 番茄钟
-      </button>
-
-      <button id="settingsButton" class="settings-button" type="button" aria-label="打开番茄钟设置">⚙</button>
+      <button id="settingsButton" class="settings-button" type="button" aria-label="打开设置">⚙</button>
 
       <button id="debugPhaseButton" class="debug-phase-button" type="button" title="调试：切换专注/短休息">
         调试 → 专注
@@ -40,10 +36,80 @@
         <span aria-hidden="true">⌖</span>
       </button>
 
+      <div id="audioControl" class="audio-control" hidden>
+        <div class="audio-volume-panel">
+          <input id="audioVolumeSlider" class="audio-volume-slider" type="range" min="0" max="100" step="1" value="100" aria-label="调节音量" />
+        </div>
+        <button id="audioToggleButton" class="audio-toggle-button" type="button" aria-label="关闭白噪音">
+          <svg viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <path d="M5 11.1h4.2l5.3-4.2v14.2l-5.3-4.2H5z" />
+            <path class="audio-wave" d="M18 10.2c1.1 1 1.7 2.3 1.7 3.8s-.6 2.8-1.7 3.8" />
+            <path class="audio-wave audio-wave-outer" d="M20.8 7.6c1.8 1.7 2.8 3.9 2.8 6.4s-1 4.7-2.8 6.4" />
+          </svg>
+        </button>
+      </div>
+
+      <nav id="featureDock" class="feature-dock" aria-label="功能启动坞"></nav>
+
+      <section id="featureDrawer" class="feature-drawer" aria-label="功能面板" hidden inert aria-hidden="true">
+        <div class="feature-drawer-shell">
+          <div class="feature-drawer-header">
+            <div>
+              <p id="featureDrawerKicker" class="feature-drawer-kicker">工具</p>
+              <h2 id="featureDrawerTitle">功能</h2>
+            </div>
+            <button id="closeFeatureDrawerButton" class="feature-drawer-close" type="button" aria-label="关闭功能面板">×</button>
+          </div>
+          <div id="featureDrawerBody" class="feature-drawer-body"></div>
+        </div>
+      </section>
+
       <div id="settingsOverlay" class="settings-overlay" hidden inert aria-hidden="true">
         <div class="settings-panel" role="dialog" aria-labelledby="settingsTitle" aria-modal="true">
-          <h2 id="settingsTitle">番茄钟设置</h2>
+          <header class="settings-header">
+            <div>
+              <p class="settings-kicker">Campfire controls</p>
+              <h2 id="settingsTitle">设置工作台</h2>
+            </div>
+            <button type="button" id="closeSettingsButton" class="settings-close" aria-label="关闭设置">×</button>
+          </header>
+          <div class="settings-workbench">
+            <nav class="settings-nav" aria-label="设置分区">
+              <a href="#settingsModules">功能模块</a>
+              <a href="#settingsQuickLinks">快捷导航</a>
+              <a href="#settingsPomodoro">番茄钟</a>
+            </nav>
           <form id="settingsForm" class="settings-form">
+            <fieldset id="settingsModules" class="settings-group">
+              <legend>功能模块</legend>
+              <label class="toggle">
+                <input id="featurePomodoro" name="featurePomodoro" type="checkbox" checked />
+                <span>番茄钟</span>
+              </label>
+              <label class="toggle">
+                <input id="featureTodayTodo" name="featureTodayTodo" type="checkbox" checked />
+                <span>今日 TODO</span>
+              </label>
+              <label class="toggle">
+                <input id="featureQuickLinks" name="featureQuickLinks" type="checkbox" checked />
+                <span>快捷导航</span>
+              </label>
+              <label class="toggle">
+                <input id="featureReadLater" name="featureReadLater" type="checkbox" checked />
+                <span>稍后再看</span>
+              </label>
+            </fieldset>
+            <fieldset id="settingsQuickLinks" class="settings-group quick-links-settings">
+              <legend>快捷导航</legend>
+              <div class="quick-link-add" aria-label="添加快捷导航">
+                <input id="quickLinkTitle" name="quickLinkTitle" type="text" maxlength="32" placeholder="名称，可选" />
+                <input id="quickLinkUrl" name="quickLinkUrl" type="url" inputmode="url" placeholder="example.com" />
+                <button type="button" id="addQuickLinkButton" class="btn-secondary">添加</button>
+              </div>
+              <div id="quickLinksSettingsList" class="quick-links-settings-list" aria-live="polite"></div>
+            </fieldset>
+            <fieldset id="settingsPomodoro" class="settings-group">
+              <legend>番茄钟</legend>
             <label class="field">
               <span>专注时长（分钟）</span>
               <div class="stepper">
@@ -85,20 +151,28 @@
               <span>专注/休息开始提示音</span>
             </label>
             <label class="toggle">
+              <input id="focusFireSoundEnabled" name="focusFireSoundEnabled" type="checkbox" checked />
+              <span>专注篝火白噪音</span>
+            </label>
+            <label class="toggle">
+              <input id="restMusicEnabled" name="restMusicEnabled" type="checkbox" checked />
+              <span>休息背景音乐</span>
+            </label>
+            <label class="toggle">
               <input id="notifyEnabled" name="notifyEnabled" type="checkbox" checked />
-              <span>浏览器通知（标签在后台时）</span>
+              <span>浏览器通知提醒</span>
             </label>
             <label class="toggle">
               <input id="manualRoastEnabled" name="manualRoastEnabled" type="checkbox" checked />
               <span>保留手动双击烤棉花糖</span>
             </label>
+            </fieldset>
             <div class="settings-actions">
               <button type="button" id="resetSettingsButton" class="btn-secondary">恢复默认</button>
               <button type="button" id="saveSettingsButton" class="btn-secondary">保存</button>
-              <button type="button" id="saveAndStartButton" class="btn-primary">保存并开始专注</button>
             </div>
           </form>
-          <button type="button" id="closeSettingsButton" class="settings-close" aria-label="关闭设置">×</button>
+          </div>
         </div>
       </div>
 

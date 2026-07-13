@@ -8,7 +8,11 @@
  */
 import { PomodoroController, PHASE } from "./pomodoro.js";
 import { initPomodoroUI } from "./pomodoro-ui.js";
-import { playSound, warmupAudio, syncRestMusicForPhase } from "./audio.js";
+import { FeatureSettingsController } from "./feature-settings.js";
+import { TodoController } from "./todo.js";
+import { QuickLinksController } from "./quick-links.js";
+import { ReadLaterController } from "./read-later.js";
+import { playSound, warmupAudio, syncFocusFireSoundForPhase, syncRestMusicForPhase } from "./audio.js";
 
 /**
  * 判断页面是否处于后台或失去焦点。
@@ -30,6 +34,7 @@ async function bootstrap() {
     exitRoastView: null,
     setMotionScale: null,
     setFocusIntensity: null,
+    setDockInteractionState: null,
     isRoastViewActive: () => false,
   };
 
@@ -38,6 +43,7 @@ async function bootstrap() {
   let ui = null;
   let pendingRoastView = false;
   let audioReady = false;
+  const breakEndEvents = new Set(["short-break-end", "long-break-end", "skip-short-break", "skip-long-break"]);
 
   /**
    * 根据阶段变更事件播放对应开始提示音（跳过 init 后的首次同步）。
@@ -85,27 +91,66 @@ async function bootstrap() {
    */
   function triggerRoastView() {
     if (sceneBridge.enterRoastView) {
-      sceneBridge.enterRoastView(false);
+      sceneBridge.enterRoastView(true);
       pendingRoastView = false;
       return;
     }
     pendingRoastView = true;
   }
 
+  /**
+   * 离开休息阶段时退出烤棉花糖近景，并清掉尚未执行的排队请求。
+   */
+  function clearRoastView() {
+    pendingRoastView = false;
+    if (sceneBridge.isRoastViewActive?.()) {
+      sceneBridge.exitRoastView?.();
+    }
+  }
+
+  /**
+   * 判断是否处于休息阶段。
+   * @param {string} phase
+   * @returns {boolean}
+   */
+  function isBreakPhase(phase) {
+    return phase === PHASE.SHORT_BREAK || phase === PHASE.LONG_BREAK;
+  }
+
+  /**
+   * 根据当前阶段恢复环境音与烤棉花糖视角。
+   */
+  function syncCurrentExperience() {
+    const session = pomodoro.getSession();
+    const settings = pomodoro.getSettings();
+    syncFocusFireSoundForPhase(session.phase, settings.focusFireSoundEnabled !== false);
+    syncRestMusicForPhase(session.phase, settings.restMusicEnabled !== false);
+    if (isBreakPhase(session.phase)) {
+      triggerRoastView();
+    }
+  }
+
   const pomodoro = new PomodoroController({
+    shouldHandleExpiry: () => !isPageHidden(),
     onChange: (payload) => {
       // 使用可选链，init() 结束前 onChange 可能被调用而 ui 尚未赋值
       ui?.render(payload);
       maybePlayPhaseSound(payload);
-      syncRestMusicForPhase(payload.session.phase, payload.settings.soundEnabled);
+      syncFocusFireSoundForPhase(payload.session.phase, payload.settings.focusFireSoundEnabled !== false);
+      syncRestMusicForPhase(payload.session.phase, payload.settings.restMusicEnabled !== false);
+      if (isBreakPhase(payload.session.phase)) {
+        if (!pendingRoastView && !sceneBridge.isRoastViewActive?.()) {
+          triggerRoastView();
+        }
+      } else if (breakEndEvents.has(payload.eventType)) {
+        clearRoastView();
+      }
       if (payload.session.phase === PHASE.PAUSED) {
         sceneBridge.setMotionScale?.(0.3);
       } else if (payload.session.phase === PHASE.FOCUS) {
         sceneBridge.setMotionScale?.(1);
         sceneBridge.setFocusIntensity?.(true);
-        if (sceneBridge.isRoastViewActive?.()) {
-          sceneBridge.exitRoastView?.();
-        }
+        clearRoastView();
       } else {
         sceneBridge.setMotionScale?.(1);
         sceneBridge.setFocusIntensity?.(false);
@@ -118,8 +163,12 @@ async function bootstrap() {
       }
     },
   });
+  const featureSettings = new FeatureSettingsController();
+  const todo = new TodoController();
+  const quickLinks = new QuickLinksController();
+  const readLater = new ReadLaterController();
 
-  await pomodoro.init();
+  await Promise.all([pomodoro.init(), featureSettings.init(), todo.init(), quickLinks.init(), readLater.init()]);
   audioReady = true;
 
   // init() 结束后再赋值，此后 onChange 调用 ui?.render() 才能正常渲染
@@ -130,6 +179,14 @@ async function bootstrap() {
         sceneBridge.exitRoastView?.();
       }
       pomodoro.startFocus();
+    },
+  }, {
+    featureSettings,
+    todo,
+    quickLinks,
+    readLater,
+    onDockStateChange: (state) => {
+      sceneBridge.setDockInteractionState?.(state);
     },
   });
 
@@ -147,15 +204,23 @@ async function bootstrap() {
       canManualRoast: () => pomodoro.canManualRoast(),
     });
     Object.assign(sceneBridge, bridge);
-    if (pendingRoastView) {
+    const session = pomodoro.getSession();
+    if (pendingRoastView && isBreakPhase(session.phase)) {
       triggerRoastView();
+    } else if (isBreakPhase(session.phase)) {
+      triggerRoastView();
+    } else {
+      pendingRoastView = false;
     }
   } catch (error) {
     console.error("WebGL scene failed", error);
     document.querySelector("#webglFallback").hidden = false;
   }
 
-  document.addEventListener("pointerdown", warmupAudio, { once: true });
+  document.addEventListener("pointerdown", () => {
+    warmupAudio();
+    syncCurrentExperience();
+  }, { once: true });
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
@@ -166,6 +231,7 @@ async function bootstrap() {
         session,
         remainingMs: pomodoro.getRemainingMs(),
       });
+      syncCurrentExperience();
     }
   });
 }

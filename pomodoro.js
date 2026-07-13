@@ -8,6 +8,8 @@ export const DEFAULT_SETTINGS = {
   cyclesBeforeLong: 4,
   autoStartNext: false,
   soundEnabled: true,
+  focusFireSoundEnabled: true,
+  restMusicEnabled: true,
   notifyEnabled: true,
   manualRoastEnabled: true,
 };
@@ -145,6 +147,7 @@ export class PomodoroController {
     this.session = createDefaultSession();
     this.onChange = options.onChange ?? (() => {});
     this.onComplete = options.onComplete ?? (() => {});
+    this.shouldHandleExpiry = options.shouldHandleExpiry ?? (() => true);
     this.tickTimer = null;
   }
 
@@ -428,7 +431,7 @@ export class PomodoroController {
       return;
     }
 
-    if (this.getRemainingMs() <= 0) {
+    if (this.getRemainingMs() <= 0 && this.shouldHandleExpiry()) {
       this.handlePhaseComplete();
     }
     this.emitChange();

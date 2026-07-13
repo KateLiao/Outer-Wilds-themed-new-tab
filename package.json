@@ -1,12 +1,13 @@
 {
   "name": "outer-wilds-themed-new-tab",
-  "version": "1.0.0",
-  "description": "Outer Wilds 风格 3D 篝火新标签页 Chrome 扩展，内置番茄钟。",
+  "version": "1.2.0",
+  "description": "Outer Wilds 风格 3D 篝火新标签页 Chrome 扩展，内置番茄钟、TODO、快捷导航与稍后再看。",
   "main": "app.js",
   "scripts": {
     "build": "rollup -c",
-    "start": "node scripts/serve-static.mjs 3000",
-    "pack:extension": "npm run build && rm -rf release && mkdir -p release && zip -r release/outer-wilds-new-tab.zip manifest.json newtab.html index.html styles.css newtab-main.js pomodoro.js pomodoro-ui.js confirm-dialog.js audio.js storage-adapter.js background.js dist assets icons",
+    "check": "node --check app.js && node --check audio.js && node --check background.js && node --check confirm-dialog.js && node --check feature-settings.js && node --check newtab-main.js && node --check pomodoro-ui.js && node --check pomodoro.js && node --check quick-links.js && node --check read-later.js && node --check storage-adapter.js && node --check todo.js && npm run build",
+    "start": "node scripts/serve-static.mjs 6287",
+    "pack:extension": "npm run check && rm -rf release && mkdir -p release && zip -r release/outer-wilds-new-tab.zip manifest.json newtab.html index.html styles.css newtab-main.js feature-settings.js todo.js quick-links.js read-later.js pomodoro.js pomodoro-ui.js confirm-dialog.js audio.js storage-adapter.js background.js dist assets icons",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

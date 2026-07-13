@@ -30,14 +30,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build extension bundle
-        run: npm run build
+      - name: Validate source and build bundle
+        run: npm run check
 
       - name: Prepare demo artifact
         run: |
           mkdir demo
           cp newtab.html demo/index.html
-          cp index.html styles.css newtab-main.js pomodoro.js pomodoro-ui.js confirm-dialog.js audio.js storage-adapter.js demo/
+          cp index.html styles.css newtab-main.js feature-settings.js todo.js quick-links.js read-later.js pomodoro.js pomodoro-ui.js confirm-dialog.js audio.js storage-adapter.js demo/
           cp -R dist assets icons demo/
 
       - name: Upload GitHub Pages artifact
