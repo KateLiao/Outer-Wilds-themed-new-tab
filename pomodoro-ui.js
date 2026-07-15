@@ -382,7 +382,7 @@ export function initPomodoroUI(pomodoro, hooks, options) {
   }
 
   /**
-   * 专注阶段显示白噪音开关。
+   * 专注白噪音或休息音乐启用时显示声音控件。
    * @param {object} settings
    * @param {string} phase
    */
@@ -391,11 +391,13 @@ export function initPomodoroUI(pomodoro, hooks, options) {
       return;
     }
     const focusSoundActive = phase === PHASE.FOCUS && settings.focusFireSoundEnabled !== false;
+    const isBreak = phase === PHASE.SHORT_BREAK || phase === PHASE.LONG_BREAK;
+    const restSoundActive = isBreak && settings.restMusicEnabled !== false;
     const muted = isAudioMuted();
-    audioControl.hidden = !focusSoundActive;
+    audioControl.hidden = !(focusSoundActive || restSoundActive);
     audioToggleButton.dataset.muted = muted ? "true" : "false";
-    audioToggleButton.setAttribute("aria-label", muted ? "开启白噪音" : "关闭白噪音");
-    audioToggleButton.setAttribute("title", muted ? "开启白噪音" : "关闭白噪音");
+    audioToggleButton.setAttribute("aria-label", muted ? "开启背景声音" : "静音背景声音");
+    audioToggleButton.setAttribute("title", muted ? "开启背景声音" : "静音背景声音");
     if (audioVolumeSlider) {
       audioVolumeSlider.value = String(Math.round(getAudioVolume() * 100));
       audioVolumeSlider.setAttribute("aria-valuetext", `${audioVolumeSlider.value}%`);
@@ -1083,8 +1085,6 @@ export function initPomodoroUI(pomodoro, hooks, options) {
       const anchor = document.createElement("a");
       anchor.className = "quick-link-card";
       anchor.href = link.url;
-      anchor.target = "_blank";
-      anchor.rel = "noopener noreferrer";
       anchor.title = link.url;
       anchor.append(createQuickLinkIcon(link), createQuickLinkLabel(link));
       grid.append(anchor);
@@ -1329,9 +1329,10 @@ export function initPomodoroUI(pomodoro, hooks, options) {
       setAudioMuted(nextMuted);
       if (!nextMuted) {
         syncFocusFireSoundForPhase(session.phase, settings.focusFireSoundEnabled !== false);
+        syncRestMusicForPhase(session.phase, settings.restMusicEnabled !== false);
       }
       renderAudioToggleButton(settings, session.phase);
-      showToast(nextMuted ? "已关闭专注白噪音" : "已开启专注白噪音");
+      showToast(nextMuted ? "已静音背景声音" : "已开启背景声音");
     });
 
     const openAudioVolume = () => {
@@ -1373,6 +1374,7 @@ export function initPomodoroUI(pomodoro, hooks, options) {
         setAudioMuted(false);
       }
       syncFocusFireSoundForPhase(session.phase, settings.focusFireSoundEnabled !== false);
+      syncRestMusicForPhase(session.phase, settings.restMusicEnabled !== false);
       renderAudioToggleButton(settings, session.phase);
     });
   }

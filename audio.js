@@ -1,6 +1,6 @@
 /**
  * 番茄钟音效：专注/休息开始提示音、休息背景音乐与专注白噪音。
- * “静音”仅控制专注白噪音，不影响提示音和休息音乐。
+ * “静音”控制专注白噪音与休息音乐，不影响阶段提示音。
  */
 
 const SOUND_URLS = {
@@ -205,7 +205,7 @@ export function playSound(type, enabled = true) {
  * @returns {void}
  */
 export function startRestMusic(enabled = true) {
-  if (!enabled || isAudioBlocked()) {
+  if (!enabled || audioMuted || isAudioBlocked()) {
     return;
   }
 
@@ -286,7 +286,7 @@ export function syncFocusFireSoundForPhase(phase, enabled = true) {
 }
 
 /**
- * 当前是否已关闭专注白噪音。
+ * 当前是否已静音持续背景声音。
  * @returns {boolean}
  */
 export function isAudioMuted() {
@@ -294,7 +294,7 @@ export function isAudioMuted() {
 }
 
 /**
- * 设置专注白噪音静音状态。
+ * 设置持续背景声音静音状态。
  * @param {boolean} muted
  * @returns {void}
  */
@@ -303,6 +303,7 @@ export function setAudioMuted(muted) {
   saveAudioMuted(muted);
   if (muted) {
     stopFocusFireSound();
+    stopRestMusic();
   }
   muteListeners.forEach((listener) => listener(audioMuted));
 }

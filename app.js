@@ -13,10 +13,12 @@ import { OuterWildsCosmicVFX } from "./outer-wilds-vfx.js";
  * 初始化篝火 3D 场景并与番茄钟联动。
  * @param {object} [options]
  * @param {() => boolean} [options.canManualRoast] 是否允许手动进入烤火视角
+ * @param {object} [options.initialDockState] 场景加载前已恢复的 Dock 状态
  * @returns {Promise<object>} 场景控制桥接对象
  */
 export async function initCampfireScene(options = {}) {
   const canManualRoast = options.canManualRoast ?? (() => true);
+  const initialDockState = options.initialDockState ?? {};
 
   const canvas = document.querySelector("#scene");
   const clockEl = document.querySelector("#clock");
@@ -27,8 +29,14 @@ export async function initCampfireScene(options = {}) {
 
   let motionScale = 1;
   let focusIntensityActive = false;
-  let dockInteractionState = { active: false, mode: "closed", moduleId: null };
-  let dockInfluence = 0;
+  let dockInteractionState = {
+    active: Boolean(initialDockState.active),
+    mode: initialDockState.mode ?? "closed",
+    moduleId: initialDockState.moduleId ?? null,
+  };
+  let dockInfluence = dockInteractionState.active
+    ? (dockInteractionState.mode === "pinned" ? 1 : 0.72)
+    : 0;
 
   if (!canvas) {
     throw new Error("Canvas element #scene not found");

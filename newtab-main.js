@@ -43,6 +43,7 @@ async function bootstrap() {
   let ui = null;
   let pendingRoastView = false;
   let audioReady = false;
+  let currentDockState = { active: false, mode: "closed", moduleId: null };
   const breakEndEvents = new Set(["short-break-end", "long-break-end", "skip-short-break", "skip-long-break"]);
 
   /**
@@ -186,6 +187,7 @@ async function bootstrap() {
     quickLinks,
     readLater,
     onDockStateChange: (state) => {
+      currentDockState = { ...state };
       sceneBridge.setDockInteractionState?.(state);
     },
   });
@@ -202,8 +204,10 @@ async function bootstrap() {
     const { initCampfireScene } = await import("./dist/app.bundle.js");
     const bridge = await initCampfireScene({
       canManualRoast: () => pomodoro.canManualRoast(),
+      initialDockState: currentDockState,
     });
     Object.assign(sceneBridge, bridge);
+    sceneBridge.setDockInteractionState?.(currentDockState);
     const session = pomodoro.getSession();
     if (pendingRoastView && isBreakPhase(session.phase)) {
       triggerRoastView();
